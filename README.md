@@ -1,18 +1,16 @@
 # Multi-Agent Lab
 
-A small multi-agent system built with **LangGraph**. A supervisor agent routes a
-task between two specialist agents — a **researcher** and a **writer** — until
-the task is complete, then returns a final answer.
+A small, readable **multi-agent system** built with **LangGraph**: a supervisor agent routes a task between two specialists — a **researcher** and a **writer** — and returns a final answer. The supervisor uses **deterministic guardrails** so the graph always makes progress, even when the LLM's routing is unreliable.
 
-This is a personal learning / portfolio project. It uses only generic, public
-concepts and is not tied to any product or dataset.
+## The problem it addresses
+Single-prompt LLM calls fall over on multi-step tasks — they mix "gather information" and "compose the answer" into one messy step, and they're hard to steer or debug. Multi-agent routing splits the work into roles with a coordinator, which is the pattern behind most production agent systems. This project is a clean, minimal reference implementation of that pattern — small enough to read in one sitting, structured enough to extend.
 
 ## What it demonstrates
-
 - A LangGraph `StateGraph` with shared state passed between nodes
 - A supervisor/router that decides which agent acts next
+- **Deterministic routing guardrails** — the supervisor advances the graph by rule (no notes → research; notes but no draft → write; draft exists → finish) and only consults the LLM to confirm completion, so a bad model response can't stall or loop the system
 - Specialist agents with distinct roles and a simple tool
-- Conditional edges and a clean stop condition
+- Conditional edges and a clean stop condition (with a max-steps safety cap)
 - A CLI to run a task end to end
 
 ## How it works
@@ -31,9 +29,7 @@ concepts and is not tied to any product or dataset.
         └──────────► FINISH ──────┘──► final answer
 ```
 
-The supervisor looks at the running state and picks the next worker. The
-researcher gathers notes (via a simple search tool), the writer composes the
-answer. When the supervisor decides the work is done, the graph ends.
+The supervisor inspects the running state and picks the next worker. The researcher gathers notes (via a simple search tool), the writer composes the answer. When a draft exists, the supervisor finishes and the graph ends.
 
 ## Setup
 
@@ -75,11 +71,17 @@ multi-agent-lab/
 └── README.md
 ```
 
-## Notes
+## Design notes
+- **Guardrails first, LLM second.** Routing is rule-driven for the common path; the model is only asked to confirm the task is complete. This keeps the system cheap, fast, and predictable.
+- **Separation of concerns.** State, tools, and each agent live in their own module, so a new agent or tool is an additive change.
 
-Swap the fake search tool in `app/tools.py` for a real web search or your own
-data source to make the researcher pull live information.
+## Limitations & future work
+This is a learning/reference implementation, and it deliberately keeps scope small. Known limitations and natural next steps:
+- **The search tool is a stub.** Swap `app/tools.py` for a real web search or a private data source to make the researcher pull live information.
+- **No evaluation harness yet.** There are no task-success metrics or regression tests on routing decisions — the next step would be a small golden set of tasks with pass/fail checks.
+- **No observability.** Adding tracing (e.g. Langfuse/LangSmith) and per-run token/cost logging would make behavior measurable in production.
+- **Single-turn, synchronous.** No streaming, no conversation memory across runs, and agents run sequentially rather than in parallel.
+- **Minimal guardrails on outputs.** Inputs and tool use aren't validated against misuse; a production version would add input checks and output constraints.
 
 ## License
-
 MIT
